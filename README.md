@@ -4,6 +4,17 @@ This ASCVD Risk calculator is used to study the risk prediction for cardiovascul
 
 This calculator uses the Pooled Cohort risk prediction equations to predict 10-year atherosclerotic cardiovascular disease risk. More information about the predictor equation can be found here https://github.com/bcjaeger/PooledCohort/tree/master
 
+## Changes in this fork
+
+This repository is forked from [bcbi/ASCVD-Risk-Calculator](https://github.com/bcbi/ASCVD-Risk-Calculator) and introduces the following changes:
+
+- **Configuration via `.env`** — R paths (`R_HOME`, `R_USER`) are now read from the `.env` file instead of being hardcoded in `src/app.py`. A `.env.example` template is included; the real `.env` is gitignored.
+- **Blood pressure fetched from BP panel** — `get_blood_pressure()` queries the FHIR blood pressure panel (LOINC `85354-9`) and extracts systolic/diastolic values from its components. The original fetched `8480-6` and `8462-4` as standalone observations, which often miss data on FHIR servers that store BP as a panel.
+- **Input validation on risk calculation** — `/calculate_risk` now validates form inputs and renders a friendly error banner listing the required fields if any are missing or non-numeric, instead of crashing with `ValueError` on `'Not Found'` values.
+- **`FHIR_PORT` is optional** — Defaults to `5002` if not set in `.env`, instead of raising `KeyError`.
+- **Dependencies** — `pandas` added to `requirements.txt`; `setup_environment.sh` now also installs the R `PooledCohort` package automatically.
+- **Gitignore hygiene** — `.env` and `.DS_Store` are gitignored.
+
 # Steps to run the ASCVD Risk Calculator
 
 ## 1. Check if R and python are installed where you are running this app.
