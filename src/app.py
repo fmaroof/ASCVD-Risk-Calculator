@@ -13,9 +13,9 @@ app = Flask(__name__)
 # Load environment variables from .env file
 load_dotenv()
 
-# Set directory paths for R
-os.environ['R_HOME'] = "?????"
-os.environ['R_USER'] = "?????"
+# Set directory paths for R from .env
+os.environ["R_HOME"] = os.getenv("R_HOME", "")
+os.environ["R_USER"] = os.getenv("R_USER", "")
 
 # Import the PooledCohort package in R
 pooled_cohort = importr("PooledCohort")
@@ -30,12 +30,14 @@ smoker_codes = pd.read_csv('smoker.csv')['target_concept_code'].tolist()
 hypertension_codes = pd.read_csv('hypertension.csv')['target_concept_code'].tolist()
 
 observation_codes = {
-    "Systolic Blood Pressure": "8480-6",
-    "Diastolic Blood Pressure": "8462-4",
     "Total Cholesterol": "2093-3",
     "HDL Cholesterol": "2085-9",
     "LDL Cholesterol": "18262-6"
 }
+
+BP_PANEL_CODE = "85354-9"
+BP_SYSTOLIC_CODE = "8480-6"
+BP_DIASTOLIC_CODE = "8462-4"
 
 race_mapping = {
     "American Indian or Alaska Native": "white",
@@ -82,6 +84,24 @@ def get_patient_demographics(patient_id, credentials):
     else:
         return {'age': 'Not Found', 'sex': 'Not Found', 'race': 'Not Found'}
 
+
+def get_blood_pressure(patient_id, credentials):
+    response = requests.get(FHIR_SERVER_BASE_URL + f"/Observation?patient={patient_id}&code={BP_PANEL_CODE}", auth=credentials)
+    systolic = 'Not Found'
+    diastolic = 'Not Found'
+    if response.status_code == 200:
+        entries = response.json().get('entry', [])
+        if entries:
+            latest = max(entries, key=lambda e: e['resource']['effectiveDateTime'])
+            for component in latest['resource'].get('component', []):
+                codings = [c.get('code') for c in component.get('code', {}).get('coding', [])]
+                val = component.get('valueQuantity', {}).get('value', 'Not Found')
+                if BP_SYSTOLIC_CODE in codings:
+                    systolic = val
+                elif BP_DIASTOLIC_CODE in codings:
+                    diastolic = val
+    return systolic, diastolic
+
 def check_code_presence(patient_id, code_list, credentials):
     for code in code_list:
         response = requests.get(FHIR_SERVER_BASE_URL + f"/Condition?patient={patient_id}&code={code}", auth=credentials)
@@ -94,8 +114,7 @@ def check_code_presence(patient_id, code_list, credentials):
 def get_patient_observations(patient_id, credentials):
     observations = {}
     demographics = get_patient_demographics(patient_id, credentials)
-    
-    # Fetch observations from FHIR
+
     for obs_name, code in observation_codes.items():
         response = requests.get(FHIR_SERVER_BASE_URL + f"/Observation?patient={patient_id}&code={code}", auth=credentials)
         if response.status_code == 200:
@@ -107,11 +126,12 @@ def get_patient_observations(patient_id, credentials):
         else:
             observations[obs_name] = 'Not Found'
 
-    # Check presence of specific conditions based on codes
+    observations['Systolic Blood Pressure'], observations['Diastolic Blood Pressure'] = get_blood_pressure(patient_id, credentials)
+
     observations['Diabetes'] = check_code_presence(patient_id, diabetes_codes, credentials)
     observations['Smoker'] = check_code_presence(patient_id, smoker_codes, credentials)
     observations['Hypertension'] = check_code_presence(patient_id, hypertension_codes, credentials)
-    
+
     return observations, demographics
 
 @app.route('/', methods=['GET', 'POST'])
@@ -129,18 +149,54 @@ def fetch_patient_data():
     observations, demographics = get_patient_observations(patient_id, credentials)
     return render_template('index.html', observations=observations, demographics=demographics, patient_id=patient_id)
 
+REQUIRED_FIELDS = [
+    "Age", "Sex", "Race", "Total Cholesterol", "HDL Cholesterol",
+    "Systolic Blood Pressure", "History of Diabetes", "Smoker",
+    "On Hypertension Treatment",
+]
+
+
 @app.route('/calculate_risk', methods=['POST'])
 def calculate_risk():
     patient_id = request.form.get('patient_id')
-    age = int(request.form['age'])
-    sex = request.form['sex']
-    race = request.form['race']
-    total_cholesterol = float(request.form['total_cholesterol'])
-    hdl_cholesterol = float(request.form['hdl_cholesterol'])
-    systolic_bp = float(request.form['systolic_blood_pressure'])
-    diabetes = request.form['diabetes']
-    smoker = request.form['smoker']
-    hypertension = request.form['hypertension']
+
+    try:
+        age = int(request.form['age'])
+        sex = request.form['sex']
+        race = request.form['race']
+        total_cholesterol = float(request.form['total_cholesterol'])
+        hdl_cholesterol = float(request.form['hdl_cholesterol'])
+        systolic_bp = float(request.form['systolic_blood_pressure'])
+        diabetes = request.form['diabetes']
+        smoker = request.form['smoker']
+        hypertension = request.form['hypertension']
+    except (ValueError, KeyError):
+        demographics = {
+            'age': request.form.get('age', ''),
+            'sex': request.form.get('sex', ''),
+            'race': request.form.get('race', ''),
+        }
+        observations = {
+            'Total Cholesterol': request.form.get('total_cholesterol', ''),
+            'HDL Cholesterol': request.form.get('hdl_cholesterol', ''),
+            'Systolic Blood Pressure': request.form.get('systolic_blood_pressure', ''),
+            'Diastolic Blood Pressure': request.form.get('diastolic_blood_pressure', ''),
+            'Diabetes': request.form.get('diabetes', ''),
+            'Smoker': request.form.get('smoker', ''),
+            'Hypertension': request.form.get('hypertension', ''),
+        }
+        error = (
+            "Risk calculation requires valid values for: "
+            + ", ".join(REQUIRED_FIELDS)
+            + ". Please select a patient with complete data."
+        )
+        return render_template(
+            'index.html',
+            demographics=demographics,
+            observations=observations,
+            patient_id=patient_id,
+            error=error,
+        )
 
     # Convert sex and race to R compatible formats
     sex_r = StrVector([sex])
@@ -194,6 +250,5 @@ def calculate_risk():
     )
 
 if __name__ == '__main__':
-    port_str = os.environ['FHIR_PORT']
-    port_int = int(port_str)
+    port_int = int(os.environ.get('FHIR_PORT', 5002))
     app.run(debug=True, port=port_int)
