@@ -1,6 +1,8 @@
 import os
 from dotenv import load_dotenv
 import requests
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 import rpy2.robjects as ro
 from rpy2.robjects.packages import importr
 from rpy2.robjects.vectors import FloatVector, StrVector
@@ -67,7 +69,7 @@ def calculate_age(birth_date):
     return today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
 
 def get_patient_demographics(patient_id, credentials):
-    response = requests.get(FHIR_SERVER_BASE_URL + f"/Patient/{patient_id}", auth=credentials)
+    response = requests.get(FHIR_SERVER_BASE_URL + f"/Patient/{patient_id}", auth=credentials, verify=False)
     if response.status_code == 200:
         patient = response.json()
         birth_date = patient['birthDate']
@@ -86,7 +88,7 @@ def get_patient_demographics(patient_id, credentials):
 
 
 def get_blood_pressure(patient_id, credentials):
-    response = requests.get(FHIR_SERVER_BASE_URL + f"/Observation?patient={patient_id}&code={BP_PANEL_CODE}", auth=credentials)
+    response = requests.get(FHIR_SERVER_BASE_URL + f"/Observation?patient={patient_id}&code={BP_PANEL_CODE}", auth=credentials, verify=False)
     systolic = 'Not Found'
     diastolic = 'Not Found'
     if response.status_code == 200:
@@ -104,7 +106,7 @@ def get_blood_pressure(patient_id, credentials):
 
 def check_code_presence(patient_id, code_list, credentials):
     for code in code_list:
-        response = requests.get(FHIR_SERVER_BASE_URL + f"/Condition?patient={patient_id}&code={code}", auth=credentials)
+        response = requests.get(FHIR_SERVER_BASE_URL + f"/Condition?patient={patient_id}&code={code}", auth=credentials, verify=False)
         if response.status_code == 200:
             data = response.json()
             if 'entry' in data and data['entry']:
@@ -116,7 +118,7 @@ def get_patient_observations(patient_id, credentials):
     demographics = get_patient_demographics(patient_id, credentials)
 
     for obs_name, code in observation_codes.items():
-        response = requests.get(FHIR_SERVER_BASE_URL + f"/Observation?patient={patient_id}&code={code}", auth=credentials)
+        response = requests.get(FHIR_SERVER_BASE_URL + f"/Observation?patient={patient_id}&code={code}", auth=credentials, verify=False)
         if response.status_code == 200:
             data = response.json()
             if 'entry' in data and data['entry']:
