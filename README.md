@@ -23,7 +23,7 @@ This repository is forked from [bcbi/ASCVD-Risk-Calculator](https://github.com/b
 ## 1. Clone the repo
 
 ```bash
-git clone git@github.com:your-username/ASCVD-Risk-Calculator.git
+git clone https://github.com/fmaroof/ASCVD-Risk-Calculator.git
 cd ASCVD-Risk-Calculator
 ```
 
