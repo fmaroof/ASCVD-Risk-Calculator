@@ -15,10 +15,15 @@ app = Flask(__name__)
 # Load environment variables from .env file
 load_dotenv()
 
-# Set directory paths for R from .env
-os.environ["R_HOME"] = os.getenv("R_HOME", "")
-os.environ["R_USER"] = os.getenv("R_USER", "")
+# Set directory paths for R only if they are defined in .env
+r_home = os.getenv("R_HOME")
+if r_home:
+    os.environ["R_HOME"] = r_home
 
+r_user = os.getenv("R_USER")
+if r_user:
+    os.environ["R_USER"] = r_user
+    
 # Import the PooledCohort package in R
 pooled_cohort = importr("PooledCohort")
 
