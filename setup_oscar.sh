@@ -14,7 +14,8 @@ echo "==> Activating environment..."
 conda activate fhir-r-env
 
 echo "==> Installing Python packages..."
-pip install -r requirements.txt
+# Install requirements BUT filter out rpy2 dynamically
+grep -v "^rpy2" requirements.txt | pip install -r /dev/stdin
 
 echo "==> Installing R packages..."
 Rscript -e 'if (!requireNamespace("PooledCohort", quietly=TRUE)) install.packages("PooledCohort", repos="https://cran.r-project.org")'
