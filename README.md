@@ -80,6 +80,8 @@ Choose the set of instructions below that matches the computer you are currently
    source ./setup_oscar.sh
    ```
 
+   This script installs Python packages from `requirements.txt` but filters out `rpy2` so that the Conda environment's R-backed `rpy2` package is used instead of pip building it.
+
 2. **Verify Activation:** The environment `fhir-r-env` will activate automatically at the end of the script.
 
 3. **Run the Flask app:**
