@@ -6,6 +6,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 import rpy2.robjects as ro
 from rpy2.robjects.packages import importr
 from rpy2.robjects.vectors import FloatVector, StrVector
+from rpy2.robjects import conversion, default_converter
 from flask import Flask, request, render_template, redirect, url_for
 from datetime import datetime
 import pandas as pd
@@ -205,35 +206,38 @@ def calculate_risk():
             error=error,
         )
 
-    # Convert sex and race to R compatible formats
-    sex_r = StrVector([sex])
-    race_r = StrVector([race_mapping.get(race, 'white')])
+    # Wrap ALL R data conversion and execution inside the context manager
+    with conversion.localconverter(default_converter):
+        # Convert sex and race to R compatible formats
+        sex_r = StrVector([sex])
+        race_r = StrVector([race_mapping.get(race, 'white')])
 
-    # Convert other inputs to R compatible formats
-    age_r = FloatVector([age])
-    total_cholesterol_r = FloatVector([total_cholesterol])
-    hdl_cholesterol_r = FloatVector([hdl_cholesterol])
-    systolic_bp_r = FloatVector([systolic_bp])
-    diabetes_r = StrVector([diabetes])
-    smoker_r = StrVector([smoker])
-    hypertension_r = StrVector([hypertension])
+        # Convert other inputs to R compatible formats
+        age_r = FloatVector([age])
+        total_cholesterol_r = FloatVector([total_cholesterol])
+        hdl_cholesterol_r = FloatVector([hdl_cholesterol])
+        systolic_bp_r = FloatVector([systolic_bp])
+        diabetes_r = StrVector([diabetes])
+        smoker_r = StrVector([smoker])
+        hypertension_r = StrVector([hypertension])
 
-    # Call the ASCVD risk calculation function from PooledCohort
-    ascvd_risk_r = pooled_cohort.predict_10yr_ascvd_risk(
-        sex=sex_r,
-        race=race_r,
-        age_years=age_r,
-        chol_total_mgdl=total_cholesterol_r,
-        chol_hdl_mgdl=hdl_cholesterol_r,
-        bp_sys_mmhg=systolic_bp_r,
-        bp_meds=hypertension_r,
-        smoke_current=smoker_r,
-        diabetes=diabetes_r
-    )
+        # Call the ASCVD risk calculation function from PooledCohort
+        ascvd_risk_r = pooled_cohort.predict_10yr_ascvd_risk(
+            sex=sex_r,
+            race=race_r,
+            age_years=age_r,
+            chol_total_mgdl=total_cholesterol_r,
+            chol_hdl_mgdl=hdl_cholesterol_r,
+            bp_sys_mmhg=systolic_bp_r,
+            bp_meds=hypertension_r,
+            smoke_current=smoker_r,
+            diabetes=diabetes_r
+        )
 
-    # Convert the result back to Python and multiply by 100 to get percentage
-    ascvd_risk_percentage = list(ascvd_risk_r)[0] * 100
+        # Extract the float value safely BEFORE leaving the with block
+        ascvd_risk_percentage = list(ascvd_risk_r)[0] * 100
 
+    # The block is closed; we're back to pure Python data now
     demographics = {'age': age, 'sex': sex, 'race': race}
     observations = {
         'Total Cholesterol': total_cholesterol,
