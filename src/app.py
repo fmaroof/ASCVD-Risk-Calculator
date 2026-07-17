@@ -206,13 +206,10 @@ def calculate_risk():
             error=error,
         )
 
-    # Wrap ALL R data conversion and execution inside the context manager
     with conversion.localconverter(default_converter):
-        # Convert sex and race to R compatible formats
         sex_r = StrVector([sex])
         race_r = StrVector([race_mapping.get(race, 'white')])
 
-        # Convert other inputs to R compatible formats
         age_r = FloatVector([age])
         total_cholesterol_r = FloatVector([total_cholesterol])
         hdl_cholesterol_r = FloatVector([hdl_cholesterol])
@@ -221,7 +218,6 @@ def calculate_risk():
         smoker_r = StrVector([smoker])
         hypertension_r = StrVector([hypertension])
 
-        # Call the ASCVD risk calculation function from PooledCohort
         ascvd_risk_r = pooled_cohort.predict_10yr_ascvd_risk(
             sex=sex_r,
             race=race_r,
@@ -234,10 +230,7 @@ def calculate_risk():
             diabetes=diabetes_r
         )
 
-        # Extract the float value safely BEFORE leaving the with block
         ascvd_risk_percentage = list(ascvd_risk_r)[0] * 100
-
-    # The block is closed; we're back to pure Python data now
     demographics = {'age': age, 'sex': sex, 'race': race}
     observations = {
         'Total Cholesterol': total_cholesterol,
